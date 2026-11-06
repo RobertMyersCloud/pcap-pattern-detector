@@ -4,7 +4,7 @@ from scapy.all import rdpcap, IP, TCP
 
 PCAP_FILE = sys.argv[1]
 MIN_CONNECTIONS = 5   # need at least this many connections to judge the timing
-MAX_JITTER = 0.10     # 0.10 = the gaps vary by about 10% or less of the average
+MAX_JITTER = 0.30     # tuned: jittered beacon scored 16.7%, human browsing 128.2%
 RETRY_WINDOW = 5      # seconds; a repeat SYN on the same connection this soon is a retry
 
 conns = {}
