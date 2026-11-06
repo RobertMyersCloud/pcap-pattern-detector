@@ -123,11 +123,11 @@ At the starting threshold of 10%, Test 2's jittered beacon (16.7%) was missed. T
 
 ### Finding 1: one later connection hid a fast scan
 
-**Expected:** a fast scan is flagged no matter what else the host does afterward.
-**Observed:** Test 3b, a fast 11-port scan followed 90 seconds later by one normal HTTP request, was **not flagged**. The detector reported 12 distinct ports in 108.8 seconds.
-**Root cause:** the original rule measured `max(times) - min(times)`, the time from a host's first SYN to its last in the whole capture. That's not a 60-second window. One later connection stretched it past 60 seconds, and the scan disappeared. Any scan inside a long capture would have disappeared the same way.
-**Fix:** a sliding window. Every SYN is treated as a possible window start, and the busiest 60-second window decides the alert.
-**Validation:** Test 3b is now flagged with 11 ports in 16.2 seconds, and that window doesn't include the later request's port (65002). The original fast scan is still flagged and the beacon captures are still not.
+- **Expected:** a fast scan is flagged no matter what else the host does afterward.
+- **Observed:** Test 3b, a fast 11-port scan followed 90 seconds later by one normal HTTP request, was **not flagged**. The detector reported 12 distinct ports in 108.8 seconds.
+- **Root cause:** the original rule measured `max(times) - min(times)`, the time from a host's first SYN to its last in the whole capture. That's not a 60-second window. One later connection stretched it past 60 seconds, and the scan disappeared. Any scan inside a long capture would have disappeared the same way.
+- **Fix:** a sliding window. Every SYN is treated as a possible window start, and the busiest 60-second window decides the alert.
+- **Validation:** Test 3b is now flagged with 11 ports in 16.2 seconds, and that window doesn't include the later request's port (65002). The original fast scan is still flagged and the beacon captures are still not.
 
 A side effect: Test 3's slow scan is now flagged, because probes about 11.1 seconds apart put 6 ports inside one window. That doesn't mean slow scans in general are caught. 5 ports within 60 seconds needs a probe at least every 15 seconds:
 
@@ -140,9 +140,9 @@ A side effect: Test 3's slow scan is now flagged, because probes about 11.1 seco
 
 ### Finding 2: retried SYNs were counted as new connections
 
-**Expected:** each connection counts once.
-**Observed:** the first run of Test 4 reported 360 connections, an average of one every 0.53 seconds, far more than a person refreshing a page could produce. Counting by source port gave 360 SYNs from only 71 source ports.
-**Investigated:** I printed the packets for the source port that sent the most SYNs. ENVY answered every SYN immediately with a reset (`RA`), and Windows retried every 0.5 seconds, five times:
+- **Expected:** each connection counts once.
+- **Observed:** the first run of Test 4 reported 360 connections, an average of one every 0.53 seconds, far more than a person refreshing a page could produce. Counting by source port gave 360 SYNs from only 71 source ports.
+- **Investigated:** I printed the packets for the source port that sent the most SYNs. ENVY answered every SYN immediately with a reset (`RA`), and Windows retried every 0.5 seconds, five times:
 
 ```text
 1793971378.804  10.10.20.102:49771 -> 10.10.30.10:65002  S
@@ -154,9 +154,9 @@ A side effect: Test 3's slow scan is now flagged, because probes about 11.1 seco
 
 A reset in answer to a SYN means nothing was listening: **the test server wasn't running during that run**, so it wasn't a valid browsing test. The same source port came back about 35 seconds later for a second burst.
 
-**Root cause (detector):** every SYN was counted as a new connection, so retries inflated the count and added false short gaps to the jitter.
-**Fix:** a repeat SYN with the same source IP, source port, destination IP, and destination port within 5 seconds of the previous one is a retry and isn't counted. It is time-based, not "one per source port," because the same port can be reused for a genuinely new connection. Port 49771 did that after 35 seconds, and the valid Test 4 run had 37 accepted connections from only 35 source ports.
-**Validation:** Tests 1, 2, and 4 gave the same numbers as before the fix with 0 retries ignored. The original fast scan reports exactly 2 retries ignored: the second SYNs to ports 3389 and 65000 that I had documented by hand in the packet analysis lab.
+- **Root cause (detector):** every SYN was counted as a new connection, so retries inflated the count and added false short gaps to the jitter.
+- **Fix:** a repeat SYN with the same source IP, source port, destination IP, and destination port within 5 seconds of the previous one is a retry and isn't counted. It is time-based, not "one per source port," because the same port can be reused for a genuinely new connection. Port 49771 did that after 35 seconds, and the valid Test 4 run had 37 accepted connections from only 35 source ports.
+- **Validation:** Tests 1, 2, and 4 gave the same numbers as before the fix with 0 retries ignored. The original fast scan reports exactly 2 retries ignored: the second SYNs to ports 3389 and 65000 that I had documented by hand in the packet analysis lab.
 
 **Test 4 was rerun** with the server confirmed up: 37 SYNs, 37 SYN-ACKs from ENVY, 0 resets. That run is the one in the results table. I saved the rerun under the same filename, which overwrote the invalid capture both on ENVY and locally. The packet listing above is the remaining record of it. Since then, every run gets its own filename.
 
