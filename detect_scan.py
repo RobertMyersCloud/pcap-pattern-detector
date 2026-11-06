@@ -18,8 +18,8 @@ for pkt in rdpcap(PCAP_FILE):
 for (src, dst), data in syns.items():
     port_count = len(data["ports"])
     span = max(data["times"]) - min(data["times"])
-    if port_count >= MIN_PORTS and span <= MAX_WINDOW:
-        print(f"SCAN SUSPECTED: {src} -> {dst}")
-        print(f"  {port_count} distinct ports in {span:.1f} seconds")
-        print(f"  ports: {sorted(data['ports'])}")
+    verdict = "SCAN SUSPECTED" if port_count >= MIN_PORTS and span <= MAX_WINDOW else "not flagged"
+    print(f"{verdict}: {src} -> {dst}")
+    print(f"  {port_count} distinct ports in {span:.1f} seconds (alert at {MIN_PORTS}+ ports within {MAX_WINDOW}s)")
+    print(f"  ports: {sorted(data['ports'])}")
 print(f"Checked {len(syns)} source/destination pair(s) that sent SYNs")
