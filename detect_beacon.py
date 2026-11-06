@@ -21,9 +21,8 @@ for (src, dst, dport), times in conns.items():
     mean_gap = statistics.mean(gaps)
     spread = statistics.stdev(gaps)
     jitter = spread / mean_gap
-    if jitter <= MAX_JITTER:
-        print(f"BEACON SUSPECTED: {src} -> {dst}:{dport}")
-        print(f"  {len(times)} connections, every {mean_gap:.2f}s on average")
-        print(f"  spread {spread:.3f}s, jitter {jitter:.1%}")
-
+    verdict = "BEACON SUSPECTED" if jitter <= MAX_JITTER else "not flagged"
+    print(f"{verdict}: {src} -> {dst}:{dport}")
+    print(f"  {len(times)} connections, every {mean_gap:.2f}s on average")
+    print(f"  spread {spread:.3f}s, jitter {jitter:.1%} (threshold {MAX_JITTER:.0%})")
 print(f"Checked {len(conns)} source/destination/port combination(s) that sent SYNs")
