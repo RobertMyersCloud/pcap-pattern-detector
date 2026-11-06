@@ -1,0 +1,14 @@
+# Raw packet captures stay local - they contain MAC addresses and full network detail
+captures/
+*.pcap
+*.pcapng
+
+# Python virtual environment and cache
+.venv/
+__pycache__/
+*.pyc
+
+# OS and editor files
+Thumbs.db
+desktop.ini
+.vscode/
