@@ -1,14 +1,23 @@
-from scapy.all import rdpcap, IP, TCP
+import argparse
 
-packets = rdpcap("captures/capture6-recon-scan.pcap")
-print(f"Loaded {len(packets)} packets")
+from scapy.all import IP, TCP, PcapReader
 
-for pkt in packets:
-    if IP in pkt and TCP in pkt:
-        t = float(pkt.time)
-        src = pkt[IP].src
-        dst = pkt[IP].dst
-        sport = pkt[TCP].sport
-        dport = pkt[TCP].dport
-        flags = pkt[TCP].flags
-        print(f"{t:.6f}  {src}:{sport} -> {dst}:{dport}  {flags}")
+
+def main():
+    parser = argparse.ArgumentParser(description="Print IPv4 TCP packets from a capture.")
+    parser.add_argument("capture", help="Path to a PCAP or PCAPNG file")
+    args = parser.parse_args()
+    count = 0
+
+    with PcapReader(args.capture) as packets:
+        for pkt in packets:
+            count += 1
+            if IP in pkt and TCP in pkt:
+                ip, tcp = pkt[IP], pkt[TCP]
+                print(f"{pkt.time:.6f}  {ip.src}:{tcp.sport} -> {ip.dst}:{tcp.dport}  {tcp.flags}")
+
+    print(f"Loaded {count} packets")
+
+
+if __name__ == "__main__":
+    main()
