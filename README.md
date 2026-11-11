@@ -12,7 +12,7 @@ Two small Python detectors that read a packet capture and flag two behaviors: **
 
 ## How the Detectors Work
 
-Both detectors look only at TCP SYN packets, the first packet of a connection attempt. A scan and a beacon are both defined by what a host *tries* to connect to, not by how the other side answers.
+Both detectors look for IPv4 TCP packets with SYN set and ACK clear. This includes connection attempts with ECN flags. A scan and a beacon are both defined by what a host *tries* to connect to, not by how the other side answers.
 
 ### Scan detector (`detect_scan.py`)
 
@@ -32,7 +32,8 @@ A beacon is one host connecting to the same service over and over at a steady in
 - Needs at least 5 connections to judge timing.
 - Measures the gaps between connections, then divides the spread of the gaps (standard deviation) by the average gap. I call that ratio **jitter**. Dividing by the average makes a 1-second wobble on a 10-second beacon score differently from a 1-second wobble on an hourly one.
 - Alerts when jitter is **30% or less**.
-- A repeat SYN on the same connection (same source IP and port, same destination IP and port) within 5 seconds counts as a retry, not a new connection. The number of ignored retries is printed every run.
+- A SYN with the same source and destination IPs, ports, and initial TCP sequence number as another SYN in the capture counts as a retry. The detector keeps the earliest timestamp for that attempt and reports how many repeats it ignored.
+- If all attempts in a group share one timestamp, there is no measurable interval and the detector skips scoring that group.
 
 It prints the measurement for every stream it checks, flagged or not.
 
@@ -45,9 +46,20 @@ python -m pip install -r requirements.txt
 
 python detect_scan.py path\to\capture.pcap
 python detect_beacon.py path\to\capture.pcap
+python read_packets.py path\to\capture.pcap
 ```
 
-`read_packets.py` prints every TCP packet in a capture in a tcpdump-style one-line format. It was the first step and is useful for checking a capture by eye.
+The scripts accept PCAP and PCAPNG files. `read_packets.py` prints each IPv4 TCP packet on one line and reports the total number of packets read.
+
+## Run the automated tests
+
+After installing the requirements, run this from the repository root:
+
+```powershell
+python -m unittest discover -s tests -v
+```
+
+The tests generate captures with Scapy in temporary directories, then run the scripts against those files. They cover the scan window boundary, distinct ports, ECN and SYN-ACK handling, beacon timing and retries, and reading PCAPNG. They require no live traffic, administrator access, or private captures.
 
 ---
 
@@ -93,7 +105,7 @@ Raw captures are not published. They contain MAC addresses and full lab network 
 
 ## Results
 
-Final settings: scan alert at 5+ ports within 60 seconds; beacon alert at 30% jitter or less.
+These are the original lab results, recorded with the five-second retry rule described below. The current implementation uses the initial sequence number to identify retries. The scan and jitter thresholds are unchanged.
 
 | Capture | Scan detector | Beacon detector |
 |---|---|---|
@@ -155,10 +167,12 @@ A side effect: Test 3's slow scan is now flagged, because probes about 11.1 seco
 A reset in answer to a SYN means nothing was listening: **the test server wasn't running during that run**, so it wasn't a valid browsing test. The same source port came back about 35 seconds later for a second burst.
 
 - **Root cause (detector):** every SYN was counted as a new connection, so retries inflated the count and added false short gaps to the jitter.
-- **Fix:** a repeat SYN with the same source IP, source port, destination IP, and destination port within 5 seconds of the previous one is a retry and isn't counted. It is time-based, not "one per source port," because the same port can be reused for a genuinely new connection. Port 49771 did that after 35 seconds, and the valid Test 4 run had 37 accepted connections from only 35 source ports.
+- **Original fix:** a repeat SYN with the same source IP, source port, destination IP, and destination port within 5 seconds of the previous one is a retry and isn't counted. It is time-based, not "one per source port," because the same port can be reused for a genuinely new connection. Port 49771 did that after 35 seconds, and the valid Test 4 run had 37 accepted connections from only 35 source ports.
 - **Validation:** Tests 1, 2, and 4 gave the same numbers as before the fix with 0 retries ignored. The original fast scan reports exactly 2 retries ignored: the second SYNs to ports 3389 and 65000 that I had documented by hand in the packet analysis lab.
 
 **Test 4 was rerun** with the server confirmed up: 37 SYNs, 37 SYN-ACKs from ENVY, 0 resets. That run is the one in the results table. I saved the rerun under the same filename, which overwrote the invalid capture both on ENVY and locally. The packet listing above is the remaining record of it. Since then, every run gets its own filename.
+
+**Current retry rule:** The five-second heuristic missed longer retries and could merge distinct attempts when a client reused its source port quickly. The detector now uses the initial TCP sequence number along with the addresses and ports.
 
 ---
 
@@ -169,14 +183,13 @@ A reset in answer to a SYN means nothing was listening: **the test server wasn't
 - **Beacons that change destination or port** are split into separate streams and may never reach 5 connections in one.
 - **Scans slower than one probe per 15 seconds** are not flagged, and neither are scans spread across many source addresses, since each source/target pair is judged on its own.
 - **TCP over IPv4 only.** UDP, ICMP, and IPv6 are ignored.
-- **The sliding window compares every SYN with the ones after it.** That's fine for lab captures of a few hundred SYNs but would be slow on hours of traffic.
+- **Capture size.** Both detectors stream packet records from disk, but keep SYN metadata in memory for grouping and sorting.
+- **Retry identity.** Distinct attempts that reuse the same addresses, ports, and initial sequence number within one capture will be merged.
 - **Reads saved captures only**, not live traffic.
 
 ## What I'd Improve Next
 
-- A faster sliding window that moves the start and end forward together instead of rescanning from each SYN.
 - One command that runs both detectors and takes the thresholds as options instead of constants in the code.
-- Tests that run the detectors against the saved captures automatically, so a code change that alters a result is caught right away.
 - Testing against longer, mixed captures with several hosts and real background traffic.
 
 ## Files
@@ -186,4 +199,5 @@ A reset in answer to a SYN means nothing was listening: **the test server wasn't
 | `detect_scan.py` | Scan detector |
 | `detect_beacon.py` | Beacon detector |
 | `read_packets.py` | Prints TCP packets from a capture, one line each |
+| `tests/test_detectors.py` | End-to-end tests with generated captures |
 | `requirements.txt` | Pinned dependency: scapy 2.8.0, the version the results were produced with |
