@@ -1,5 +1,7 @@
 # PCAP Pattern Detector
 
+[![tests](https://github.com/RobertMyersCloud/pcap-pattern-detector/actions/workflows/tests.yml/badge.svg)](https://github.com/RobertMyersCloud/pcap-pattern-detector/actions/workflows/tests.yml)
+
 Two small Python detectors that read a packet capture and flag two behaviors: **port scanning** and **beacon-like periodic connections**. I wrote them to find in code what I had first found by hand in my [packet analysis lab](https://github.com/RobertMyersCloud/packet-analysis-lab), then tested them on fresh traffic from my own lab range, including traffic built to get past them.
 
 ## At a Glance
@@ -216,3 +218,5 @@ I reran both detectors on all seven saved captures before and after the change, 
 | `read_packets.py` | Prints TCP packets from a capture, one line each |
 | `tests/test_detectors.py` | End-to-end tests with generated captures |
 | `requirements.txt` | Pinned dependency: scapy 2.8.0, the version the results were produced with |
+| `.github/workflows/tests.yml` | Runs the automated tests on every push and pull request |
+| `LICENSE` | MIT License |
