@@ -19,7 +19,7 @@ Both detectors look for IPv4 TCP packets with SYN set and ACK clear. This includ
 A scan is one source sending connection attempts to many different ports on one target in a short time.
 
 - Groups SYNs by source and destination.
-- Treats every SYN as the possible start of a 60-second window and finds the window with the most distinct destination ports.
+- Treats every SYN as the possible start of a 60-second window and finds the window with the most distinct destination ports. The window's start and end move forward together through the sorted SYNs, so each SYN is handled a fixed number of times instead of being compared with every later SYN.
 - Alerts when that busiest window has **5 or more distinct ports**.
 
 For every pair it prints the busiest window and the whole-capture totals, flagged or not, so a miss shows which condition failed.
@@ -176,6 +176,20 @@ A reset in answer to a SYN means nothing was listening: **the test server wasn't
 
 ---
 
+## Retest After a Code Update
+
+I later changed both detectors:
+
+- Retries are matched by initial sequence number instead of a 5-second window. My packet analysis lab measured SYN retry gaps of about 1, 2, 4, and 8 seconds; under the old rule, an 8-second retry would have counted as a new connection.
+- SYNs with ECN flags now count, and SYN-ACKs are excluded explicitly.
+- The scan window moves its start and end together instead of rescanning from every SYN.
+- A stream whose connections all share one timestamp is reported as not scored instead of dividing by a zero average gap.
+- Five automated tests build their own captures and check the edge cases: the 60-second boundary, ECN SYNs, SYN-ACKs, reused ports, long retries, and PCAPNG input.
+
+I reran both detectors on all seven saved captures before and after the change, with the same captures (SHA-256 checked against the originals), the same scapy version (2.8.0), and the same command. All 14 outputs matched except the wording of the retry line. Every verdict, count, interval, jitter value, and retry count was identical, so the results table above didn't change.
+
+---
+
 ## Limitations
 
 - **Small sample.** The threshold was tuned on one capture of each kind, in my lab, not on real network traffic.
@@ -190,6 +204,7 @@ A reset in answer to a SYN means nothing was listening: **the test server wasn't
 ## What I'd Improve Next
 
 - One command that runs both detectors and takes the thresholds as options instead of constants in the code.
+- Tests that also run the detectors against the saved lab captures (the current tests use synthetic ones), so a code change that alters a real result is caught right away.
 - Testing against longer, mixed captures with several hosts and real background traffic.
 
 ## Files
